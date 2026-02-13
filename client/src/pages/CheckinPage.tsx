@@ -81,6 +81,7 @@ export default function CheckinPage() {
     if (!finalAnswer.trim()) return;
 
     addUserMessage(finalAnswer);
+    const previousInput = finalAnswer;
     setInput('');
     setLoading(true);
     setCurrentQuestion(null);
@@ -127,6 +128,7 @@ export default function CheckinPage() {
     } catch (err) {
       addSystemMessage('Something went wrong. Please try again.');
       setCurrentQuestion(currentQuestion); // Restore question
+      setInput(previousInput); // Restore input so the send button is usable
     }
     setLoading(false);
   };

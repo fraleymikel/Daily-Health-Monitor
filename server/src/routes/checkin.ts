@@ -112,8 +112,13 @@ router.post('/answer', async (req: Request, res: Response) => {
     db.prepare('UPDATE checkins SET completed_at = datetime("now"), summary = ? WHERE id = ?')
       .run(closingMessage, checkin_id);
 
-    // Run pattern analysis
-    const insights = analyzePatterns();
+    // Run pattern analysis (non-critical — don't fail the check-in if this errors)
+    let insights: ReturnType<typeof analyzePatterns> = [];
+    try {
+      insights = analyzePatterns();
+    } catch (err) {
+      console.error('Pattern analysis failed:', err);
+    }
 
     return res.json({
       status: 'completed',
