@@ -45,6 +45,34 @@ router.post('/start', async (req: Request, res: Response) => {
 
   const nextQuestion = getNextQuestion(answeredIds, cycleTracking);
 
+  // If all questions were answered but check-in wasn't marked complete (e.g. previous error),
+  // complete it now and report as already_completed
+  if (!nextQuestion && answeredIds.length > 0) {
+    const allResponses = db.prepare('SELECT question as id, category, answer FROM responses WHERE checkin_id = ?')
+      .all(checkin.id) as Array<{ id: string; category: string; answer: string }>;
+    const weather = await fetchWeatherForDate(date);
+    const closingMessage = generateClosingMessage(allResponses, weather);
+    db.prepare('UPDATE checkins SET completed_at = datetime("now"), summary = ? WHERE id = ?')
+      .run(closingMessage, checkin.id);
+
+    const metrics = extractMetrics(allResponses);
+    const insertMetric = db.prepare(`
+      INSERT OR IGNORE INTO daily_metrics (checkin_id, date, category, metric_name, numeric_value, text_value)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const m of metrics) {
+      insertMetric.run(checkin.id, date, m.category, m.metric_name, m.numeric_value, m.text_value);
+    }
+
+    try { analyzePatterns(); } catch (_) {}
+
+    return res.json({
+      status: 'already_completed',
+      checkin_id: checkin.id,
+      message: "Your previous check-in has been saved! Come back tomorrow, or view your dashboard for insights.",
+    });
+  }
+
   // Get user's name for greeting
   const name = (db.prepare("SELECT value FROM settings WHERE key = 'name'").get() as any)?.value || '';
 
